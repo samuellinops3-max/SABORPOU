@@ -1,0 +1,30 @@
+name: Build Pou PS3
+
+on:
+  push:
+    branches: [ main, master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Baixar Toolchain PS3
+        run: |
+          git clone --depth 1 https://github.com/ps3dev/ps3dev-docker.git /tmp/ps3-docker
+
+      - name: Usar imagem PSL1GHT
+        uses: addnab/docker-run-action@v3
+        with:
+          image: ps3dev/psl1ght:latest
+          options: -v ${{ github.workspace }}:/build
+          run: |
+            cd /build
+            make pkg
+
+      - name: Baixar PKG
+        uses: actions/upload-artifact@v4
+        with:
+          name: Pou-PS3-Install
+          path: Pou-PS3.pkg
