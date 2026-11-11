@@ -10,21 +10,46 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Baixar Toolchain PS3
+      - name: Instalar dependências
         run: |
-          git clone --depth 1 https://github.com/ps3dev/ps3dev-docker.git /tmp/ps3-docker
+          sudo apt-get update
+          sudo apt-get install -y git make gcc g++ automake autoconf bison flex \
+            libelf-dev texinfo libncurses5-dev patch python3 python-is-python3 \
+            subversion wget curl zip unzip bzip2 lzma liblzma-dev
 
-      - name: Usar imagem PSL1GHT
-        uses: addnab/docker-run-action@v3
-        with:
-          image: ps3dev/psl1ght:latest
-          options: -v ${{ github.workspace }}:/build
-          run: |
-            cd /build
+      - name: Baixar Toolchain PS3 (ps3dev)
+        run: |
+          git clone --depth 1 https://github.com/ps3dev/ps3toolchain.git /tmp/ps3toolchain
+          cd /tmp/ps3toolchain
+          # Baixa apenas os arquivos prontos — não compila tudo (leva horas!)
+          wget -q https://github.com/bucanero/ps3dev-docker/releases/download/toolchain-v2/ps3dev.tar.gz
+          sudo mkdir -p /usr/local/ps3dev
+          sudo tar -xzf ps3dev.tar.gz -C /usr/local/ps3dev
+          echo "PS3DEV=/usr/local/ps3dev" >> $GITHUB_ENV
+          echo "PSL1GHT=/usr/local/ps3dev/PSL1GHT" >> $GITHUB_ENV
+          echo "PATH=/usr/local/ps3dev/bin:/usr/local/ps3dev/ppu/bin:/usr/local/ps3dev/spu/bin:$PATH" >> $GITHUB_ENV
+
+      - name: Verificar instalação
+        run: |
+          which ppu-gcc || echo "Atenção: compilador não encontrado"
+          ls -la /usr/local/ps3dev/
+
+      - name: Compilar e criar PKG
+        run: |
+          export PS3DEV=/usr/local/ps3dev
+          export PSL1GHT=$PS3DEV/PSL1GHT
+          export PATH=$PS3DEV/bin:$PS3DEV/ppu/bin:$PS3DEV/spu/bin:$PATH
+          cd $GITHUB_WORKSPACE
+          if [ -f Makefile ]; then
             make pkg
+          else
+            echo "ERRO: Arquivo Makefile não encontrado!"
+            exit 1
+          fi
 
-      - name: Baixar PKG
+      - name: Salvar PKG
         uses: actions/upload-artifact@v4
+        if: success()
         with:
           name: Pou-PS3-Install
           path: Pou-PS3.pkg
